@@ -2,6 +2,278 @@
 
 ## GitHub Actions
 
+GitHub Actions workflows and EAS mobile build configurations have been added. They can be used immediately after pushing to GitHub.
+
+- Documentation: `docs/github-actions.md`
+- CI Workflow: `.github/workflows/ci.yml`
+- Mobile Build Workflow: `.github/workflows/mobile-build.yml`
+- EAS Config: `client/eas.json`
+
+## Directory Structure Standards (Strictly Enforced)
+
+This repository is a monorepo based on pnpm workspaces.
+
+- Expo code resides in the `client` directory; Express.js code resides in the `server` directory.
+- This template defaults to **no Tab Bar**, but can be modified as needed.
+
+```
+├── client/                     # React Native frontend code
+│   ├── app/                    # Expo Router directory (routing config only)
+│   │   ├── _layout.tsx         # Root layout file (required, must read)
+│   │   └── index.tsx           # Home page
+│   ├── screens/                # Page implementation directory (maps to app/ routes)
+│   │   └── demo/               # Example screen
+│   │       └── index.tsx
+│   ├── components/             # Reusable components
+│   │   └── Screen.tsx          # Screen container component (mandatory usage)
+│   ├── hooks/                  # Custom Hooks
+│   ├── contexts/               # React Context code
+│   ├── utils/                  # Utility functions
+│   ├── assets/                 # Static assets
+│   └── package.json            # Expo app package.json
+├── server/                     # Backend code root (Express.js)
+│   ├── src/
+│   │   └── index.ts            # Server entry point
+│   └── package.json            # Server package.json
+├── package.json
+├── .cozeproj                   # Preset scaffolding scripts (Do Not Modify)
+└── .coze                       # Configuration file (Do Not Modify)
+```
+
+## Styling Solution
+
+Styling is developed using **tailwindcss** (underlying engine: Uniwind).
+
+Example usage:
+
+```tsx
+<View className="flex-1 bg-white dark:bg-gray-900 p-4"></View>
+```
+
+```tsx
+<Text
+  className="text-lg font-bold text-gray-900 dark:text-white"
+  selectionColorClassName="accent-blue-500"
+>
+  Hello World
+</Text>
+```
+
+Uniwind Official Docs: https://docs.uniwind.dev/llms.txt
+
+## How to Run Static Checks (TSC + ESLint)
+
+```bash
+# Lint both client and server directories
+pnpm -w lint:all
+
+# Lint client directory only
+pnpm -w lint:client
+
+# Lint server directory only
+pnpm -w lint:server
+```
+
+## How to Modify Theme Mode (System, Dark, Light)
+
+Default mode is **system**. If a user explicitly selects "Dark" or "Light," modify the `DEFAULT_THEME` variable in `client/components/ColorSchemeUpdater.tsx` to the appropriate value.
+
+## How to Customize Design Tokens
+
+The project's **Design System** is implemented via tailwindcss. The core entry file is `client/global.css`. To customize the theme, you should **read and modify the `client/global.css` file**.
+
+## Routing & Tab Bar Implementation Standards
+
+### Option 1: No Tab Bar (Stack Navigation)
+
+Suitable for linear-flow applications. Uses a simplified directory structure:
+
+```
+client/app/
+├── _layout.tsx         # Root layout (Stack navigation config)
+├── index.tsx           # App entry
+├── detail.tsx          # Detail page (pass data via params)
+└── +not-found.tsx      # 404 page
+```
+
+**Root Layout Config** `client/app/_layout.tsx`:
+
+*Code snippet for reference only*
+
+```tsx
+<Stack screenOptions={{ headerShown: false }}>
+  <Stack.Screen name="index" />
+  <Stack.Screen name="detail" />
+</Stack>
+```
+
+**App Entry** `client/app/index.tsx`:
+```tsx
+export { default } from "@/screens/home";
+```
+> **Prohibited**: Do not create a `(tabs)` directory in scenarios without a Tab Bar.
+
+### Option 2: With Tab Bar (Tabs Navigation)
+
+Uses route grouping to implement a bottom tab bar:
+```
+client/app/
+├── _layout.tsx              # Root layout
+├── (tabs)/
+│   ├── _layout.tsx          # Tab navigation configuration
+│   ├── index.tsx            # Default Tab (must exist)
+│   ├── discover.tsx         # Discover page
+│   └── profile.tsx          # Profile page
+├── detail.tsx               # Standalone page outside tabs (pass data via params)
+└── +not-found.tsx
+```
+> **⚠️ [CRITICAL]**: `app/index.tsx` has higher priority than `(tabs)/index.tsx`, which will cause the home page to render without the Tab Bar. **When `(tabs)/index.tsx` exists, you MUST delete `app/index.tsx`**.
+
+**Root Layout Config** `client/app/_layout.tsx`:
+
+*Code snippet for reference only*
+
+```tsx
+<Stack screenOptions={{ headerShown: false }}>
+  <Stack.Screen name="(tabs)" />
+  <Stack.Screen name="detail" />
+</Stack>
+```
+
+**App Entry** `client/app/(tabs)/index.tsx`:
+```tsx
+export { default } from "@/screens/home";
+```
+
+**Tab Layout Config** `client/app/(tabs)/_layout.tsx`:
+
+```tsx
+import { Tabs } from 'expo-router';
+import { Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { FontAwesome6 } from '@expo/vector-icons';
+import { useCSSVariable } from 'uniwind';
+
+export default function TabLayout() {
+  const insets = useSafeAreaInsets();
+  const [background, muted, accent, border] = useCSSVariable([
+    '--color-background',
+    '--color-muted',
+    '--color-accent',
+    '--color-border',
+  ]) as string[];
+
+  let tabBarStyle = {
+    backgroundColor: background,
+    borderTopWidth: 1,
+    borderTopColor: border,
+  };
+
+  // Fix abnormal height issues on Web (this logic is mandatory)
+  if (Platform.OS === 'web') {
+    tabBarStyle = {
+      ...tabBarStyle,
+      height: 'auto',
+    }
+  }
+
+  return (
+    <Tabs
+      screenOptions={{
+        headerShown: false,
+        tabBarStyle,
+        tabBarActiveTintColor: accent,
+        tabBarInactiveTintColor: muted,
+      }}
+    >
+      {/* Name must match filename exactly */}
+      <Tabs.Screen
+        name="index"
+        options={{
+          title: 'Home',
+          tabBarIcon: ({ color }) => (
+            <FontAwesome6 name="house" size={20} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="discover"
+        options={{
+          title: 'Discover',
+          tabBarIcon: ({ color }) => (
+            <FontAwesome6 name="compass" size={20} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="profile"
+        options={{
+          title: 'Profile',
+          tabBarIcon: ({ color }) => (
+            <FontAwesome6 name="user" size={20} color={color} />
+          ),
+        }}
+      />
+    </Tabs>
+  );
+}
+```
+
+**Tab Page File** `client/app/(tabs)/index.tsx`:
+```tsx
+export { default } from "@/screens/home";
+```
+
+### Notes
+
+Before modifying `client/app/_layout.tsx`, you must read the file first.
+
+The following logic must be preserved:
+- Keep the `global.css` import (crucial for tailwindcss).
+- Keep the `Provider` usage.
+
+## Dependency Management & Module Import Standards
+
+### Dependency Installation
+**Do not** use `npm` or `yarn`. Use specific commands based on the directory:
+
+| Directory | Command | Description |
+|------|----------|------|
+| `client/` | `npx expo install <package>` | Expo auto-selects versions compatible with the SDK |
+| `server/` | `pnpm add <package>` | Use pnpm for backend dependency management |
+
+```bash
+# client directory (Expo project)
+cd client && npx expo install expo-camera expo-image-picker
+
+# server directory (Express project)
+cd server && pnpm add axios cors
+```
+
+**Network Issues**: `npx expo install` may fail due to network conditions. Retry up to 2 times. If it still fails, fall back to `pnpm add`.
+
+## Expo Development Standards
+
+### Path Aliases
+
+Expo is configured with an `@/` path alias pointing to the `client/` directory:
+
+```tsx
+// Correct
+import { Screen } from '@/components/Screen';
+
+// Avoid relative paths
+import { Screen } from '../../../components/Screen';
+```
+
+## Local Development
+
+`coze dev`: Used for the initial startup of both frontend and backend services. It can also be used to restart them (the command attempts to kill processes occupying the ports before starting the services).
+
+# Expo App + Express.js
+
+## GitHub Actions
+
 已添加 GitHub Actions 工作流与 EAS 移动端构建配置，上传到 GitHub 后可直接使用。
 
 - 说明文档：`docs/github-actions.md`
