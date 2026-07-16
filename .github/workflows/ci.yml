@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate Monorepo
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CI: true
+      EXPO_NO_TELEMETRY: 1
+      EXPO_PUBLIC_BACKEND_BASE_URL: https://example.com
+      EXPO_PUBLIC_COZE_PROJECT_ID: github
+      COZE_PROJECT_NAME: ReLife
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Validate Expo config
+        working-directory: client
+        run: npx expo config --type public
+
+      - name: Lint client
+        run: pnpm -w lint:client
+
+      - name: Lint server
+        run: pnpm -w lint:server
+
+      - name: Build server
+        working-directory: server
+        run: pnpm run build
+
+      - name: Export Expo web bundle
+        working-directory: client
+        run: npx expo export --platform web --output-dir dist-web
+
+      - name: Upload server artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-dist
+          path: server/dist
+          if-no-files-found: error
+
+      - name: Upload web artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: expo-web-dist
+          path: client/dist-web
+          if-no-files-found: error

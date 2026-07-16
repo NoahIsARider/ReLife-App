@@ -1,0 +1,93 @@
+name: Mobile Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: Select the mobile platform to build
+        required: true
+        default: android
+        type: choice
+        options:
+          - android
+          - ios
+          - all
+      profile:
+        description: Select the EAS build profile
+        required: true
+        default: preview
+        type: choice
+        options:
+          - preview
+          - production
+
+permissions:
+  contents: read
+
+jobs:
+  eas-build:
+    name: Trigger EAS Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      EXPO_NO_TELEMETRY: 1
+      EXPO_PUBLIC_BACKEND_BASE_URL: ${{ vars.EXPO_PUBLIC_BACKEND_BASE_URL }}
+      EXPO_PUBLIC_COZE_PROJECT_ID: ${{ vars.EXPO_PUBLIC_COZE_PROJECT_ID }}
+      COZE_PROJECT_NAME: ${{ vars.COZE_PROJECT_NAME }}
+      EXPO_OWNER: ${{ vars.EXPO_OWNER }}
+      EXPO_EAS_PROJECT_ID: ${{ vars.EXPO_EAS_PROJECT_ID }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Setup Expo and EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Validate Expo authentication
+        run: eas whoami
+
+      - name: Print EAS linkage hints
+        shell: bash
+        run: |
+          if [ -z "${EXPO_OWNER}" ]; then
+            echo "::warning::EXPO_OWNER is not set. Add it in GitHub repository variables if this is the first EAS build for the project."
+          fi
+
+          if [ -z "${EXPO_EAS_PROJECT_ID}" ]; then
+            echo "::warning::EXPO_EAS_PROJECT_ID is not set. First-time non-interactive builds may fail until the app is linked to an EAS project."
+          fi
+
+      - name: Trigger EAS build
+        working-directory: client
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          platform="${{ inputs.platform }}"
+          profile="${{ inputs.profile }}"
+
+          if [ "$platform" = "all" ]; then
+            eas build --platform android --profile "$profile" --non-interactive --wait
+            eas build --platform ios --profile "$profile" --non-interactive --wait
+          else
+            eas build --platform "$platform" --profile "$profile" --non-interactive --wait
+          fi
