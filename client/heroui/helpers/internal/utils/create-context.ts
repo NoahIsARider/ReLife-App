@@ -36,7 +36,10 @@ export function createContext<ContextType>(options: CreateContextOptions = {}) {
 
   const Context = React.createContext<ContextType | undefined>(undefined);
   const errorConstructor = Error as ErrorConstructor & {
-    captureStackTrace?: (targetObject: object, constructorOpt?: Function) => void;
+    captureStackTrace?: (
+      targetObject: object,
+      constructorOpt?: (...args: never[]) => unknown
+    ) => void;
   };
 
   Context.displayName = name;
