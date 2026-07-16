@@ -35,6 +35,9 @@ export function createContext<ContextType>(options: CreateContextOptions = {}) {
   } = options;
 
   const Context = React.createContext<ContextType | undefined>(undefined);
+  const errorConstructor = Error as ErrorConstructor & {
+    captureStackTrace?: (targetObject: object, constructorOpt?: Function) => void;
+  };
 
   Context.displayName = name;
 
@@ -45,7 +48,7 @@ export function createContext<ContextType>(options: CreateContextOptions = {}) {
       const error = new Error(errorMessage);
 
       error.name = 'ContextError';
-      Error.captureStackTrace?.(error, useContext);
+      errorConstructor.captureStackTrace?.(error, useContext);
       throw error;
     }
 
